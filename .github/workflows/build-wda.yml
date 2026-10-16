@@ -1,0 +1,44 @@
+name: Build WebDriverAgent IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "appium/WebDriverAgent tag or branch to build (blank = default branch)"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Check out appium/WebDriverAgent
+        uses: actions/checkout@v4
+        with:
+          repository: appium/WebDriverAgent
+          ref: ${{ inputs.ref }}
+
+      - name: Build unsigned WebDriverAgentRunner for a real device
+        run: |
+          xcodebuild clean build-for-testing \
+            -project WebDriverAgent.xcodeproj \
+            -scheme WebDriverAgentRunner \
+            -destination generic/platform=iOS \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - name: Package as .ipa
+        run: |
+          APP=$(find build/Build/Products -name "WebDriverAgentRunner-Runner.app" -maxdepth 2 | head -n 1)
+          echo "Found: $APP"
+          mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qr WDA.ipa Payload
+          ls -lh WDA.ipa
+
+      - name: Upload WDA.ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: WDA-ipa
+          path: WDA.ipa
+          if-no-files-found: error
